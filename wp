@@ -1,0 +1,68 @@
+%Wiktor Petrykowski 371324
+
+ensure_loaded(library(lists)).
+
+% N - liczba procesow
+% Program - nazwa pliku
+verify(N, Program) :- 
+    see(Program),
+    read(variables(Zmienne)),
+    read(arrays(Tablice)),
+    read(program(Instrukcje)),
+    seen,
+    verify(N, Zmienne, Tablice, Instrukcje).
+
+%verify(N, Zmienne, Tablice, Instrukcje) :- 
+%    write(N),nl,
+%    write(Zmienne),nl,
+%    write(Tablice),nl,
+%    nth0(2, Instrukcje, Elem),
+%    functor(Elem, Instrukcja, K),
+%    write(Instrukcja),nl,
+%    write(K),nl,
+%    jestBezpieczny(Elem),nl.
+
+verify(N, Zmienne, Tablice, Instrukcje) :- 
+    initState([Zmienne, Tablice], N, Stan),
+    write(Stan).
+
+%np. ?- functor(tree(nil, 4, nil), F , K).
+ %              F = tree,  K = 3
+
+% Program = [Zmienne, Tablice]
+% StanPoczatkowy - [Zmienne, Tablice, Liczniki]
+%initState(+Program, +N, -StanPoczątkowy)
+initArray(0, []).
+initArray(N,[0|L]) :-
+  N > 0,
+  N1 is N - 1,
+  initArray(N1,L). 
+
+initState([Zmienne, Tablice], N, StanPoczatkowy) :- 
+    initArray(N, Liczniki),
+    proper_length(Zmienne, VL), %sprawdzamy ile zmiennych trzeba stworzyc
+    initArray(VL, Variables),
+    proper_length(Tablice, AL), %sprawdzamy ile tablic trzeba stworzyc
+    initArrays(N, AL, Arrays), % tworzymy L tablic dlugosci N
+    StanPoczatkowy = [Variables, Arrays, Liczniki].
+
+initArrays(_, 0, []).
+initArrays(N, L, Arrays) :-
+    L > 0,
+    L1 is L-1,
+    initArray(N, NowaTablica), % Tworzymy nowa tablice
+    append([NowaTablica], Array, Arrays), % Dokladamy stworzona tablice na koniec naszej tablicy tablic programu
+    initArrays(N, L1, Array). % Powtorka dla kolejnych tablic
+
+% Program – reprezentacja (termowa) programu
+% StanWe - informacja o stanie systemu (wartości wszystkich zmiennych oraz liczniki rozkazów wszystkich procesów)
+% StanWy – informacja o stanie systemu po wykonaniu bieżącej instrukcji przez proces o identyfikatorze PrId.
+
+%step(+Program, +StanWe, ?PrId, -StanWy)
+
+
+
+
+
+
+
