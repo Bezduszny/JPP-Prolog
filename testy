@@ -1,0 +1,28 @@
+%Testy
+test1(NowyStan) :-
+    Stan = [_{x:5, y:3, z:2}, _{pirsza:[1,2,3,4,5], druga:[2,3,4,5,6], trzycia:[3,4,5,6,7]}, [1,1,1,1]],   
+    run(assign(array(pirsza, 2), y*10), Stan, 2, NowyStan).
+
+test2(S) :-
+    Stan = [_{x:5, y:3, z:2}, _{pirsza:[1,2,3,4,5], druga:[2,3,4,5,6], trzycia:[3,4,5,6,7]}, [1,1,1,1]],   
+    run(assign(x, y*10), Stan, 2, S).
+
+test3(S) :-
+    Stan = [_{x:5, y:3, z:2}, _{pirsza:[1,2,3,4,5], druga:[2,3,4,5,6], trzycia:[3,4,5,6,7]}, [1,1,1,1]],   
+    run(assign(x, y*z), Stan, 2, S).
+
+test4(S) :-
+    Stan = [_{x:5, y:3, z:2}, _{pirsza:[1,2,3,4,5], druga:[2,3,4,5,6], trzycia:[3,4,5,6,7]}, [1,1,1,1]],
+    run(sekcja, Stan, 2, S).
+
+test5(S) :-
+    Stan = [_{x:5, y:3, z:2}, _{pirsza:[1,2,3,4,5], druga:[2,3,4,5,6], trzycia:[3,4,5,6,7]}, [1,1,1,1]],
+    run(goto(5), Stan, 2, S).
+
+test6(S) :-
+    Stan = [_{x:5, y:3, z:2}, _{pirsza:[1,2,3,4,5], druga:[2,3,4,5,6], trzycia:[3,4,5,6,7]}, [1,1,1,1]],
+    run(condGoto(y = pid, 7), Stan, 3, S).
+
+test7(S) :-
+    Stan = [_{x:5, y:3, z:2}, _{pirsza:[1,2,3,4,5], druga:[2,3,4,5,6], trzycia:[3,4,5,6,7]}, [1,1,1,1]],
+    run(condGoto(y=pid, 7), Stan, 2, S).

@@ -2,121 +2,142 @@
 
 ensure_loaded(library(lists)).
 
-% N - liczba procesow
 % Program - nazwa pliku
-verify(N, Program) :- 
+analyze(Program, Analyzed) :- 
     see(Program),
     read(variables(Zmienne)),
     read(arrays(Tablice)),
     read(program(Instrukcje)),
     seen,
-    verify(N, Zmienne, Tablice, Instrukcje).
+    Analyzed = [Zmienne, Tablice, Instrukcje].
 
-%verify(N, Zmienne, Tablice, Instrukcje) :- 
-%    write(N),nl,
-%    write(Zmienne),nl,
-%    write(Tablice),nl,
-%    nth0(2, Instrukcje, Elem),
-%    functor(Elem, Instrukcja, K),
-%    write(Instrukcja),nl,
-%    write(K),nl,
-%    jestBezpieczny(Elem),nl.
-
-verify(N, Zmienne, Tablice, Instrukcje) :- 
-    initState([Zmienne, Tablice], N, Stan),
-    write(Stan).
-
-%np. ?- functor(tree(nil, 4, nil), F , K).
- %              F = tree,  K = 3
-
-% Program = [Zmienne, Tablice, Instrukcje]
 % Stan = [Zmienne, Tablice, Liczniki], gdzie:
 %   Zmienne - slownik zmiennych programu 
-%   Tablice - slownik tablic programu 
-%   Liczniki - tablica licznikow procesow
-%initState(+Program, +N, -StanPoczątkowy)
-initArray(0, []).
-initArray(N,[0|L]) :-
+%   Tablice - slownik tablic (jako listy prologowe) programu 
+%   Liczniki - tablica licznikow (wskazuja aktualny numer instrukcji) procesow
+
+%Tworzy n-elementowa liste o wartosciach E
+createArray(0, _, []).
+createArray(N, E, [E|L]) :-
   N > 0,
   N1 is N - 1,
-  initArray(N1,L). 
+  createArray(N1, E, L). 
 
+%Tworzy slownik {ident:liczba} i ustawia wartosci na 0
 initVariables([], _{}).
 initVariables([Zmienna|Zmienne], Variables) :- 
     initVariables(Zmienne, Vars),
     Variables = Vars.put(Zmienna, 0).
 
+%Tworzy slownik {ident:tablica} i ustawia wartosci na N-elementowe listy o wartosciach 0
+initArrays(_, [], _{}).
+initArrays(N, [NazwaTablicy|Pozostale], Arrays) :-
+    createArray(N, 0, NowaTablica),
+    initArrays(N, Pozostale, Arrs),
+    Arrays = Arrs.put(NazwaTablicy, NowaTablica).
+
+%initState(+Program, +N, -StanPoczątkowy)
 initState([Zmienne, Tablice], N, StanPoczatkowy) :- 
-    initArray(N, Liczniki), % tworzymy liczniki
+    createArray(N, 1, Liczniki), % tworzymy liczniki
     initVariables(Zmienne, Variables), %tworzymy slownik zmiennych
     initArrays(N, Tablice, Arrays), % tworzymy slownik tablic
     StanPoczatkowy = [Variables, Arrays, Liczniki].
 
-initArrays(N, [], _{}).
-initArrays(N, [NazwaTablicy|Pozostale], Arrays) :-
-    initArray(N, NowaTablica), % Tworzymy nowa tablice
-    initArrays(N, Pozostale, Arrs),
-    Arrays = Arrs.put(NazwaTablicy, NowaTablica).
-
-% Program – reprezentacja (termowa) programu
-% StanWe - informacja o stanie systemu (wartości wszystkich zmiennych oraz liczniki rozkazów wszystkich procesów)
-% StanWy – informacja o stanie systemu po wykonaniu bieżącej instrukcji przez proces o identyfikatorze PrId.
-
-%run(NazwaInstrukcji, Argumenty, [Zmienne, Tablice, Liczniki], [NoweZmienne, NoweTablice, NoweLiczniki]) :-
-run(assign, Instrukcja, Stan, [NoweZmienne, NoweTablice, NoweLiczniki]) :-
+%run(Instrukcja, Stan, Pid, NowyStan)
+run(assign(Zmienna, Wyrazenie), Stan, Pid, NowyStan) :-
     Stan = [Zmienne, Tablice, Liczniki],
-    arg(1, Instrukcja, Zmienna),
-    arg(2, Instrukcja, Wyrazenie),
-    functor(Zmienna, Nazwa, Arnosc),
+    evalWyrArytm(Stan, Wyrazenie, Pid, Wynik),    
+    (   (   %Arnosc 0 wiec zwykla zmienna
+            functor(Zmienna, Nazwa, 0), 
+            NoweZmienne = Zmienne.put(Nazwa, Wynik),
+            NoweTablice = Tablice
+        )
+        ;   %lub
+        (   %element tablicy
+            functor(Zmienna, array, 2),
+            arg(1, Zmienna, NazwaTablicy),
+            arg(2, Zmienna, Wyr),
+            Tablica = Tablice.get(NazwaTablicy),
+            evalWyrArytm(Stan, Wyr, Pid, Indeks),
+            replace(Indeks, Tablica, Wynik, NowaTablica),
+            NoweZmienne = Zmienne,
+            NoweTablice = Tablice.put(NazwaTablicy, NowaTablica)
+        )
+    ),
+    PosredniStan = [NoweZmienne, NoweTablice, Liczniki],
+    gotoNext(PosredniStan, Pid, NowyStan).
+
+run(goto(NumerInstrukcji), Stan, Pid, NowyStan) :-
+    Stan = [Zmienne, Tablice, Liczniki],
+    replace(Pid, Liczniki, NumerInstrukcji, NoweLiczniki),
+    NowyStan = [Zmienne, Tablice, NoweLiczniki].
+
+run(condGoto(WyrLogiczne, NumerInstrukcji), Stan, Pid, NowyStan) :-
+    Stan = [Zmienne, Tablice, _],
     
-    (   Arnosc == 0 -> %zwykla zmienna
-        evalWyrArytm(Stan, Wyrazenie, Wynik),
-        NoweZmienne = Zmienne.put(Nazwa, Wynik),
-        NoweTablice = Tablice
-    ;   %element tablicy
-        arg(1, Zmienna, NazwaTablicy),
-        arg(2, Zmienna, Wyrazenie),
-        Tablica = Tablice.get(NazwaTablicy),
-        evalWyrArytm(Stan, Wyrazenie, Wynik),
-        NoweTablice = Tablice.put(Nazwa, Wynik) 
+    functor(WyrLogiczne, OperRel, 2),
+    arg(1, WyrLogiczne, WyrProste1),  
+    arg(2, WyrLogiczne, WyrProste2),
+    evalWyrProste(Zmienne, Tablice, WyrProste1, Pid, Wynik1), 
+    evalWyrProste(Zmienne, Tablice, WyrProste2, Pid, Wynik2),
+    ( porownanie(OperRel, Wynik1, Wynik2) ->
+        run(goto(NumerInstrukcji), Stan, Pid, NowyStan)
+    ;
+        gotoNext(Stan, Pid, NowyStan)
     ).
-%run(goto(Liczba)) :- write("hehe").
-run(goto, [NumerInstrukcji], [Zmienne,Tablice,Liczniki], [Zmienne, Tablice, NoweLiczniki]).
-run(condGoto, [WyrLogiczne], [Zmienne, Tablice, Liczniki], [Zmienne, Tablice, NoweLiczniki]).
-run(sekcja, [], [Zmienne, Tablice, Liczniki], [Zmienne, Tablice, NoweLiczniki]).
+
+run(sekcja, Stan, Pid, NowyStan) :- gotoNext(Stan, Pid, NowyStan).
+
+gotoNext(Stan, Pid, NowyStan) :-
+    Stan = [_, _, Liczniki],
+    nth0(Pid, Liczniki, AktualnyNumerInstrukcji),
+    NastepnyNumerInstrukcji is AktualnyNumerInstrukcji + 1,
+    run(goto(NastepnyNumerInstrukcji), Stan, Pid, NowyStan).
+
+% Podmienia N-ty element listy L na element E, K to nowo powstala lista
+replace(N, L, E, K) :-
+    nth0(N, L, _, R),
+    nth0(N, K, E, R).
+
 %evalWyrArytm(+Stan, +Wyr, -Wynik)
-evalWyrArytm([Zmienne, Tablice, _], Wyrazenie, Wynik) :-
+evalWyrArytm([Zmienne, Tablice, _], Wyrazenie, Pid, Wynik) :-
     %Wyrazenie to
     %   wyrazenie proste
-    evalWyrProste(Zmienne, Tablice, Wyrazenie, Wynik);
+    evalWyrProste(Zmienne, Tablice, Wyrazenie, Pid, Wynik);
     %lub
     %   +|-|*|/ wyrazen prostych
     (functor(Wyrazenie, Oper, 2),
         arg(1, Wyrazenie, WyrProste1),
         arg(2, Wyrazenie, WyrProste2),
-        evalWyrProste(Zmienne, Tablice, WyrProste1, Wynik1),
-        evalWyrProste(Zmienne, Tablice, WyrProste2, Wynik2),
+        evalWyrProste(Zmienne, Tablice, WyrProste1, Pid, Wynik1),
+        evalWyrProste(Zmienne, Tablice, WyrProste2, Pid, Wynik2),
         dzialanie(Oper, Wynik1, Wynik2, Wynik)
     ).
 
+%dzialanie(+Oper, +Liczba1, +Liczb2, -Wynik)
 dzialanie(+, Skladnik1, Skladnik2, Wynik) :- Wynik is Skladnik1 + Skladnik2.
 dzialanie(*, Czynnik1, Czynnik2, Wynik) :- Wynik is Czynnik1 * Czynnik2.
 dzialanie(-, Odjemna, Odjemnik, Wynik) :- Wynik is Odjemna - Odjemnik.
 dzialanie(/, Dzielna, Dzielnik, Wynik) :- Wynik is Dzielna / Dzielnik.
 
+%porownanie(OperRel, Liczba1, Liczb2)
+porownanie(<, L1, L2) :- L1 < L2.
+porownanie(=, L1,  L2) :- L1 =:= L2.
+porownanie(<>, L1, L2) :- L1 =\= L2.
+
+
 %evalWyrProste(+Zmienne, +Wyrazenie, -Wynik)
-evalWyrProste(Zmienne, Tablice, Wyrazenie, Wynik) :-
+evalWyrProste(Zmienne, Tablice, Wyrazenie, Pid, Wynik) :-
     (number(Wyrazenie), Wynik = Wyrazenie);
-    (atom(Wyrazenie), Wynik = Zmienne.get(Wyrazenie));
+    (atom(Wyrazenie), Wyrazenie = pid, Wynik is Pid);
+    (atom(Wyrazenie), Wyrazenie \= pid, Wynik = Zmienne.get(Wyrazenie));
     (functor(Wyrazenie, array, 2),
      arg(1, Wyrazenie, Ident), %nazwa tablicy
      arg(2, Wyrazenie, WyrArytm), %indeks tablicy, ktory moze byc wyrazeniem
-     evalWyrArytm([Zmienne, Tablice, _], WyrArytm, Indeks),
+     evalWyrArytm([Zmienne, Tablice, _], WyrArytm, Pid, Indeks),
      Tablica = Tablice.get(Ident), %wyciagamy odpowiednia tablice ze slownika
      nth0(Indeks, Tablica, Wynik) %sprawdzamy co siedzi pod wyewaluowanym indeksem
     ).
-
-
 
 %nextInstruction(+StanWe, PrId, -StanWy)
 nextInstruction(program(Instrukcje), StanWe, PrId, StanWy) :-
