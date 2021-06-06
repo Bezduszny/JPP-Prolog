@@ -1,6 +1,6 @@
-%Wiktor Petrykowski 371324
-%Rozwiazanie nie zawiera wypisywania niepoprawnych przeplotow
-%Poza tym dziala ok na przykladowych programach
+% Wiktor Petrykowski 371324
+% Rozwiazanie nie zawiera wypisywania niepoprawnych przeplotow
+% Poza tym dziala ok na przykladowych programach
 % Stan = [Zmienne, Tablice, Liczniki], gdzie:
 %   Zmienne - slownik zmiennych programu 
 %   Tablice - slownik tablic programu 
@@ -47,38 +47,37 @@ analyze(Program, Analyzed) :-
     seen,
     Analyzed = [Zmienne, Tablice, Instrukcje].
 
-%Tworzy n-elementowa liste o wartosciach E
+% Tworzy n-elementowa liste o wartosciach E
 createArray(0, _, []).
 createArray(N, E, [E|L]) :-
   N > 0,
   N1 is N - 1,
   createArray(N1, E, L). 
 
-%Tworzy slownik {ident:liczba} i ustawia wartosci na 0
+% Tworzy slownik {ident:liczba} i ustawia wartosci na 0
 initVariables([], _{}).
 initVariables([Zmienna|Zmienne], Variables) :- 
     initVariables(Zmienne, Vars),
     Variables = Vars.put(Zmienna, 0).
 
-%Tworzy slownik {ident:tablica} i ustawia wartosci na N-elementowe listy o wartosciach 0
+% Tworzy slownik {ident:tablica}
+% ustawia wartosci na N-elementowe listy o wartosciach 0
 initArrays(_, [], _{}).
 initArrays(N, [NazwaTablicy|Pozostale], Arrays) :-
     createArray(N, 0, NowaTablica),
     initArrays(N, Pozostale, Arrs),
     Arrays = Arrs.put(NazwaTablicy, NowaTablica).
 
-
-
 run(assign(Zmienna, Wyrazenie), Stan, Pid, NowyStan) :-
     Stan = [Zmienne, Tablice, Liczniki],
     evalWyrArytm(Stan, Wyrazenie, Pid, Wynik),    
-    (   (   %Arnosc 0 wiec zwykla zmienna
+    (   (   % Arnosc 0 wiec zwykla zmienna
             functor(Zmienna, Nazwa, 0), 
             NoweZmienne = Zmienne.put(Nazwa, Wynik),
             NoweTablice = Tablice
         )
-        ;   %lub
-        (   %element tablicy
+        ;   % lub
+        (   % element tablicy
             functor(Zmienna, array, 2),
             arg(1, Zmienna, NazwaTablicy),
             arg(2, Zmienna, Wyr),
@@ -123,12 +122,11 @@ replace(N, L, E, K) :-
     nth0(N, L, _, R),
     nth0(N, K, E, R).
 
-%evalWyrArytm(+Stan, +Wyr, -Wynik)
 evalWyrArytm([Zmienne, Tablice, _], Wyrazenie, Pid, Wynik) :-
-    %Wyrazenie to
+    % Wyrazenie to
     %   wyrazenie proste
-    evalWyrProste(Zmienne, Tablice, Wyrazenie, Pid, Wynik);
-    %lub
+    evalWyrProste(Zmienne, Tablice, Wyrazenie, Pid, Wynik)
+    ; % lub
     %   +|-|*|/ wyrazen prostych
     (   functor(Wyrazenie, Oper, 2),
         arg(1, Wyrazenie, WyrProste1),
@@ -138,28 +136,30 @@ evalWyrArytm([Zmienne, Tablice, _], Wyrazenie, Pid, Wynik) :-
         dzialanie(Oper, Wynik1, Wynik2, Wynik)
     ).
 
-%dzialanie(+Oper, +Liczba1, +Liczb2, -Wynik)
 dzialanie(+, Skladnik1, Skladnik2, Wynik) :- Wynik is Skladnik1 + Skladnik2.
 dzialanie(*, Czynnik1, Czynnik2, Wynik) :- Wynik is Czynnik1 * Czynnik2.
 dzialanie(-, Odjemna, Odjemnik, Wynik) :- Wynik is Odjemna - Odjemnik.
 dzialanie(/, Dzielna, Dzielnik, Wynik) :- Wynik is Dzielna / Dzielnik.
 
-%porownanie(OperRel, Liczba1, Liczb2)
 porownanie(<, L1, L2) :- L1 < L2.
 porownanie(=, L1,  L2) :- L1 =:= L2.
 porownanie(<>, L1, L2) :- L1 =\= L2.
 
-%evalWyrProste(+Zmienne, +Wyrazenie, +Pid, -Wynik)
 evalWyrProste(Zmienne, Tablice, Wyrazenie, Pid, Wynik) :-
-    (number(Wyrazenie), Wynik = Wyrazenie);
-    (atom(Wyrazenie), Wyrazenie = pid, Wynik is Pid);
-    (atom(Wyrazenie), Wyrazenie \= pid, Wynik = Zmienne.get(Wyrazenie));
-    (functor(Wyrazenie, array, 2),
-     arg(1, Wyrazenie, Ident), %nazwa tablicy
-     arg(2, Wyrazenie, WyrArytm), %indeks tablicy, ktory moze byc wyrazeniem
-     evalWyrArytm([Zmienne, Tablice, _], WyrArytm, Pid, Indeks),
-     Tablica = Tablice.get(Ident), %wyciagamy odpowiednia tablice ze slownika
-     nth0(Indeks, Tablica, Wynik) %zwracamy co jest pod danym indeksem
+    (number(Wyrazenie), % liczba
+        Wynik = Wyrazenie);
+    (atom(Wyrazenie), % pid
+        Wyrazenie = pid, 
+        Wynik is Pid);
+    (atom(Wyrazenie), % zmienna
+        Wyrazenie \= pid, 
+        Wynik = Zmienne.get(Wyrazenie));
+    (functor(Wyrazenie, array, 2), % tablica
+        arg(1, Wyrazenie, Ident),
+        arg(2, Wyrazenie, WyrArytm),
+        evalWyrArytm([Zmienne, Tablice, _], WyrArytm, Pid, Indeks),
+        Tablica = Tablice.get(Ident), %wyciagamy odpowiednia tablice ze slownika
+        nth0(Indeks, Tablica, Wynik) %zwracamy co jest pod danym indeksem
     ).
 
 range(Low, Low, _).
