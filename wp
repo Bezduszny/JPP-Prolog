@@ -158,32 +158,30 @@ verify(N, Program) :-
     analyze(Program, Analyzed),
     Analyzed = [Zmienne, Tablice, Instrukcje],
     initState(Zmienne, Tablice, 2, StanPoczatkowy),
-    walk(N, Instrukcje, StanPoczatkowy, [StanPoczatkowy]).
+    \+ walk(N, Instrukcje, StanPoczatkowy, [StanPoczatkowy]),
+    write("Program jest poprawny").
 
 range(Low, Low, High).
 range(Out,Low,High) :- NewLow is Low+1, NewLow =< High, range(Out, NewLow, High).
 
 czyByl(Stan, PoprzednieStany) :- member(Stan, PoprzednieStany).
 
+% true jesli istnieje niebezpieczny przeplot, false jesli nie istnieje
 walk(N, Instrukcje, StanWe, OdwiedzoneStany) :-
     range(Pid, 0, N),
     step(Instrukcje, StanWe, Pid, StanWy),
+    (\+ czyByl(StanWy, OdwiedzoneStany)),
+    NoweOdwiedzoneStany = [StanWy|OdwiedzoneStany],
+    ( czyNiebezpieczny(Instrukcje, StanWy),!
+    ;
+      walk(N, Instrukcje, StanWy, NoweOdwiedzoneStany)).
 
-    (\+ czyByl(StanWy, OdwiedzoneStany),
-        ( czyBezpieczny(Instrukcje, StanWy) ->
-            NoweOdwiedzoneStany = [StanWy|OdwiedzoneStany],
-            walk(N, Instrukcje, StanWy, NoweOdwiedzoneStany)
-        ;
-            write("Nie jestem bezpieczny :("),
-            fail
-        )
-    ).
-
-czyBezpieczny(Instrukcje, Stan) :-
+czyNiebezpieczny(Instrukcje, Stan) :-
     indeksySekcji(1, Instrukcje, Indeksy),
     Stan = [Zmienne, Tablice, Liczniki],
     ileWSekcji(Indeksy, Liczniki, N),
-    N < 2.
+    N > 1,
+    write("Program jest niepoprawny").
 
 ileWSekcji(_, [], 0).
 ileWSekcji(IndeksySekcji, Liczniki, N) :-
