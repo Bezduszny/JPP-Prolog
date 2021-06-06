@@ -29,8 +29,11 @@ verify(N, Zmienne, Tablice, Instrukcje) :-
 %np. ?- functor(tree(nil, 4, nil), F , K).
  %              F = tree,  K = 3
 
-% Program = [Zmienne, Tablice]
-% StanPoczatkowy - [Zmienne, Tablice, Liczniki]
+% Program = [Zmienne, Tablice, Instrukcje]
+% Stan = [Zmienne, Tablice, Liczniki], gdzie:
+%   Zmienne - slownik zmiennych programu 
+%   Tablice - slownik tablic programu 
+%   Liczniki - tablica licznikow procesow
 %initState(+Program, +N, -StanPoczątkowy)
 initArray(0, []).
 initArray(N,[0|L]) :-
@@ -38,27 +41,94 @@ initArray(N,[0|L]) :-
   N1 is N - 1,
   initArray(N1,L). 
 
+initVariables([], _{}).
+initVariables([Zmienna|Zmienne], Variables) :- 
+    initVariables(Zmienne, Vars),
+    Variables = Vars.put(Zmienna, 0).
+
 initState([Zmienne, Tablice], N, StanPoczatkowy) :- 
-    initArray(N, Liczniki),
-    proper_length(Zmienne, VL), %sprawdzamy ile zmiennych trzeba stworzyc
-    initArray(VL, Variables),
-    proper_length(Tablice, AL), %sprawdzamy ile tablic trzeba stworzyc
-    initArrays(N, AL, Arrays), % tworzymy L tablic dlugosci N
+    initArray(N, Liczniki), % tworzymy liczniki
+    initVariables(Zmienne, Variables), %tworzymy slownik zmiennych
+    initArrays(N, Tablice, Arrays), % tworzymy slownik tablic
     StanPoczatkowy = [Variables, Arrays, Liczniki].
 
-initArrays(_, 0, []).
-initArrays(N, L, Arrays) :-
-    L > 0,
-    L1 is L-1,
+initArrays(N, [], _{}).
+initArrays(N, [NazwaTablicy|Pozostale], Arrays) :-
     initArray(N, NowaTablica), % Tworzymy nowa tablice
-    append([NowaTablica], Array, Arrays), % Dokladamy stworzona tablice na koniec naszej tablicy tablic programu
-    initArrays(N, L1, Array). % Powtorka dla kolejnych tablic
+    initArrays(N, Pozostale, Arrs),
+    Arrays = Arrs.put(NazwaTablicy, NowaTablica).
 
 % Program – reprezentacja (termowa) programu
 % StanWe - informacja o stanie systemu (wartości wszystkich zmiennych oraz liczniki rozkazów wszystkich procesów)
 % StanWy – informacja o stanie systemu po wykonaniu bieżącej instrukcji przez proces o identyfikatorze PrId.
 
+%run(NazwaInstrukcji, Argumenty, [Zmienne, Tablice, Liczniki], [NoweZmienne, NoweTablice, NoweLiczniki]) :-
+run(assign, Instrukcja, Stan, [NoweZmienne, NoweTablice, NoweLiczniki]) :-
+    Stan = [Zmienne, Tablice, Liczniki],
+    arg(1, Instrukcja, Zmienna),
+    arg(2, Instrukcja, Wyrazenie),
+    functor(Zmienna, Nazwa, Arnosc),
+    
+    (   Arnosc == 0 -> %zwykla zmienna
+        evalWyrArytm(Stan, Wyrazenie, Wynik),
+        NoweZmienne = Zmienne.put(Nazwa, Wynik),
+        NoweTablice = Tablice
+    ;   %element tablicy
+        arg(1, Zmienna, NazwaTablicy),
+        arg(2, Zmienna, Wyrazenie),
+        Tablica = Tablice.get(NazwaTablicy),
+        evalWyrArytm(Stan, Wyrazenie, Wynik),
+        NoweTablice = Tablice.put(Nazwa, Wynik) 
+    ).
+%run(goto(Liczba)) :- write("hehe").
+run(goto, [NumerInstrukcji], [Zmienne,Tablice,Liczniki], [Zmienne, Tablice, NoweLiczniki]).
+run(condGoto, [WyrLogiczne], [Zmienne, Tablice, Liczniki], [Zmienne, Tablice, NoweLiczniki]).
+run(sekcja, [], [Zmienne, Tablice, Liczniki], [Zmienne, Tablice, NoweLiczniki]).
+%evalWyrArytm(+Stan, +Wyr, -Wynik)
+evalWyrArytm([Zmienne, Tablice, _], Wyrazenie, Wynik) :-
+    %Wyrazenie to
+    %   wyrazenie proste
+    evalWyrProste(Zmienne, Tablice, Wyrazenie, Wynik);
+    %lub
+    %   +|-|*|/ wyrazen prostych
+    (functor(Wyrazenie, Oper, 2),
+        arg(1, Wyrazenie, WyrProste1),
+        arg(2, Wyrazenie, WyrProste2),
+        evalWyrProste(Zmienne, Tablice, WyrProste1, Wynik1),
+        evalWyrProste(Zmienne, Tablice, WyrProste2, Wynik2),
+        dzialanie(Oper, Wynik1, Wynik2, Wynik)
+    ).
+
+dzialanie(+, Skladnik1, Skladnik2, Wynik) :- Wynik is Skladnik1 + Skladnik2.
+dzialanie(*, Czynnik1, Czynnik2, Wynik) :- Wynik is Czynnik1 * Czynnik2.
+dzialanie(-, Odjemna, Odjemnik, Wynik) :- Wynik is Odjemna - Odjemnik.
+dzialanie(/, Dzielna, Dzielnik, Wynik) :- Wynik is Dzielna / Dzielnik.
+
+%evalWyrProste(+Zmienne, +Wyrazenie, -Wynik)
+evalWyrProste(Zmienne, Tablice, Wyrazenie, Wynik) :-
+    (number(Wyrazenie), Wynik = Wyrazenie);
+    (atom(Wyrazenie), Wynik = Zmienne.get(Wyrazenie));
+    (functor(Wyrazenie, array, 2),
+     arg(1, Wyrazenie, Ident), %nazwa tablicy
+     arg(2, Wyrazenie, WyrArytm), %indeks tablicy, ktory moze byc wyrazeniem
+     evalWyrArytm([Zmienne, Tablice, _], WyrArytm, Indeks),
+     Tablica = Tablice.get(Ident), %wyciagamy odpowiednia tablice ze slownika
+     nth0(Indeks, Tablica, Wynik) %sprawdzamy co siedzi pod wyewaluowanym indeksem
+    ).
+
+
+
+%nextInstruction(+StanWe, PrId, -StanWy)
+nextInstruction(program(Instrukcje), StanWe, PrId, StanWy) :-
+    nth0(PrId, Instrukcje, Instrukcja),
+    functor(Instrukcja, Nazwa, _),
+    run(Nazwa, Instrukcja, StanWe, StanWy).
+
 %step(+Program, +StanWe, ?PrId, -StanWy)
+step(Program, [Zmienne, Tablice, Liczniki], PrId, StanWy) :- 
+    PrId >= 0,
+    nth0(PrId, Liczniki, NumerAktualnejInstrukcji).
+
 
 
 
