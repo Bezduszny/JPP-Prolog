@@ -1,4 +1,4 @@
-%Testy
+    %Testy
 test1(NowyStan) :-
     Stan = [_{x:5, y:3, z:2}, _{pirsza:[1,2,3,4,5], druga:[2,3,4,5,6], trzycia:[3,4,5,6,7]}, [1,1,1,1]],   
     run(assign(array(pirsza, 2), y*10), Stan, 2, NowyStan).
@@ -26,3 +26,17 @@ test6(S) :-
 test7(S) :-
     Stan = [_{x:5, y:3, z:2}, _{pirsza:[1,2,3,4,5], druga:[2,3,4,5,6], trzycia:[3,4,5,6,7]}, [1,1,1,1]],
     run(condGoto(y=pid, 7), Stan, 2, S).
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+bad0 :- verify(2, 'peterson-bad0.txt').
+    
+bad1 :- verify(2, 'peterson-bad1.txt').
+
+bad2 :- verify(2, 'peterson-bad2.txt').
+
+unsafe :- verify(2, 'unsafe.txt').
+
+safe :- verify(2, 'peterson,txt').

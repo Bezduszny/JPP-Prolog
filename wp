@@ -37,7 +37,7 @@ initArrays(N, [NazwaTablicy|Pozostale], Arrays) :-
     Arrays = Arrs.put(NazwaTablicy, NowaTablica).
 
 %initState(+Program, +N, -StanPoczątkowy)
-initState([Zmienne, Tablice], N, StanPoczatkowy) :- 
+initState(Zmienne, Tablice, N, StanPoczatkowy) :- 
     createArray(N, 1, Liczniki), % tworzymy liczniki
     initVariables(Zmienne, Variables), %tworzymy slownik zmiennych
     initArrays(N, Tablice, Arrays), % tworzymy slownik tablic
@@ -74,7 +74,6 @@ run(goto(NumerInstrukcji), Stan, Pid, NowyStan) :-
 
 run(condGoto(WyrLogiczne, NumerInstrukcji), Stan, Pid, NowyStan) :-
     Stan = [Zmienne, Tablice, _],
-    
     functor(WyrLogiczne, OperRel, 2),
     arg(1, WyrLogiczne, WyrProste1),  
     arg(2, WyrLogiczne, WyrProste2),
@@ -82,7 +81,7 @@ run(condGoto(WyrLogiczne, NumerInstrukcji), Stan, Pid, NowyStan) :-
     evalWyrProste(Zmienne, Tablice, WyrProste2, Pid, Wynik2),
     ( porownanie(OperRel, Wynik1, Wynik2) ->
         run(goto(NumerInstrukcji), Stan, Pid, NowyStan)
-    ;
+    ; %else
         gotoNext(Stan, Pid, NowyStan)
     ).
 
@@ -106,7 +105,7 @@ evalWyrArytm([Zmienne, Tablice, _], Wyrazenie, Pid, Wynik) :-
     evalWyrProste(Zmienne, Tablice, Wyrazenie, Pid, Wynik);
     %lub
     %   +|-|*|/ wyrazen prostych
-    (functor(Wyrazenie, Oper, 2),
+    (   functor(Wyrazenie, Oper, 2),
         arg(1, Wyrazenie, WyrProste1),
         arg(2, Wyrazenie, WyrProste2),
         evalWyrProste(Zmienne, Tablice, WyrProste1, Pid, Wynik1),
@@ -125,8 +124,7 @@ porownanie(<, L1, L2) :- L1 < L2.
 porownanie(=, L1,  L2) :- L1 =:= L2.
 porownanie(<>, L1, L2) :- L1 =\= L2.
 
-
-%evalWyrProste(+Zmienne, +Wyrazenie, -Wynik)
+%evalWyrProste(+Zmienne, +Wyrazenie, +Pid, -Wynik)
 evalWyrProste(Zmienne, Tablice, Wyrazenie, Pid, Wynik) :-
     (number(Wyrazenie), Wynik = Wyrazenie);
     (atom(Wyrazenie), Wyrazenie = pid, Wynik is Pid);
@@ -146,14 +144,65 @@ nextInstruction(program(Instrukcje), StanWe, PrId, StanWy) :-
     run(Nazwa, Instrukcja, StanWe, StanWy).
 
 %step(+Program, +StanWe, ?PrId, -StanWy)
-step(Program, [Zmienne, Tablice, Liczniki], PrId, StanWy) :- 
+% Program to lista instrukcji
+step(Program, StanWe, PrId, StanWy) :- 
+    StanWe = [Zmienne, Tablice, Liczniki],
     PrId >= 0,
-    nth0(PrId, Liczniki, NumerAktualnejInstrukcji).
+    nth0(PrId, Liczniki, NumerAktualnejInstrukcji),
+    nth1(NumerAktualnejInstrukcji, Program, Instrukcja),
+    run(Instrukcja, StanWe, PrId, StanWy).
+
+%WERYFIKACJA
+
+verify(N, Program) :- 
+    analyze(Program, Analyzed),
+    Analyzed = [Zmienne, Tablice, Instrukcje],
+    initState(Zmienne, Tablice, 2, StanPoczatkowy),
+    walk(N, Instrukcje, StanPoczatkowy, [StanPoczatkowy]).
+
+range(Low, Low, High).
+range(Out,Low,High) :- NewLow is Low+1, NewLow =< High, range(Out, NewLow, High).
+
+czyByl(Stan, PoprzednieStany) :- member(Stan, PoprzednieStany).
+
+walk(N, Instrukcje, StanWe, OdwiedzoneStany) :-
+    range(Pid, 0, N),
+    step(Instrukcje, StanWe, Pid, StanWy),
+
+    (\+ czyByl(StanWy, OdwiedzoneStany),
+        ( czyBezpieczny(Instrukcje, StanWy) ->
+            NoweOdwiedzoneStany = [StanWy|OdwiedzoneStany],
+            walk(N, Instrukcje, StanWy, NoweOdwiedzoneStany)
+        ;
+            write("Nie jestem bezpieczny :("),
+            fail
+        )
+    ).
+
+czyBezpieczny(Instrukcje, Stan) :-
+    indeksySekcji(1, Instrukcje, Indeksy),
+    Stan = [Zmienne, Tablice, Liczniki],
+    ileWSekcji(Indeksy, Liczniki, N),
+    N < 2.
+
+ileWSekcji(_, [], 0).
+ileWSekcji(IndeksySekcji, Liczniki, N) :-
+    Liczniki = [NumerAktualnejInstrukcji|Pozostale],
+    ( member(NumerAktualnejInstrukcji, IndeksySekcji) ->
+        ileWSekcji(IndeksySekcji, Pozostale, M),
+        N is M + 1
+    ;
+        ileWSekcji(IndeksySekcji, Pozostale, N)
+    ).
 
 
-
-
-
-
-
-
+indeksySekcji(_, [], []).
+indeksySekcji(N, Instrukcje, Indeksy) :-
+    Instrukcje = [Instrukcja|Pozostale],
+    ( Instrukcja = sekcja -> 
+        Indeksy = [N | PozostaleIndeksy]
+        ;
+        Indeksy = PozostaleIndeksy
+    ),
+    M is N + 1,
+    indeksySekcji(M, Pozostale, PozostaleIndeksy).
