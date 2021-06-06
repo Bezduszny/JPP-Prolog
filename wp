@@ -1,6 +1,42 @@
 %Wiktor Petrykowski 371324
+%Rozwiazanie nie zawiera wypisywania niepoprawnych przeplotow
+%Poza tym dziala ok na przykladowych programach
+% Stan = [Zmienne, Tablice, Liczniki], gdzie:
+%   Zmienne - slownik zmiennych programu 
+%   Tablice - slownik tablic programu 
+%   Liczniki - lista licznikow (wskazuja aktualny numer instrukcji) procesow
 
 ensure_loaded(library(lists)).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Wymagane procedury %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+initState(Zmienne, Tablice, N, StanPoczatkowy) :- 
+    createArray(N, 1, Liczniki),
+    initVariables(Zmienne, Variables),
+    initArrays(N, Tablice, Arrays),
+    StanPoczatkowy = [Variables, Arrays, Liczniki].
+
+% Program to lista instrukcji, ktore mozna dostac uzywajac procedury analyze
+step(Program, StanWe, PrId, StanWy) :- 
+    StanWe = [_, _, Liczniki],
+    PrId >= 0,
+    nth0(PrId, Liczniki, NumerAktualnejInstrukcji),
+    nth1(NumerAktualnejInstrukcji, Program, Instrukcja),
+    run(Instrukcja, StanWe, PrId, StanWy).
+
+verify(N, Program) :- 
+    analyze(Program, Analyzed),
+    Analyzed = [Zmienne, Tablice, Instrukcje],
+    initState(Zmienne, Tablice, 2, StanPoczatkowy),
+    StanPoczatkowy = [_, _, Liczniki],
+    \+ walk(N, Instrukcje, StanPoczatkowy, [Liczniki]),
+    write("Program jest poprawny").
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%% Procedury pomocnicze %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Program - nazwa pliku
 analyze(Program, Analyzed) :- 
@@ -10,11 +46,6 @@ analyze(Program, Analyzed) :-
     read(program(Instrukcje)),
     seen,
     Analyzed = [Zmienne, Tablice, Instrukcje].
-
-% Stan = [Zmienne, Tablice, Liczniki], gdzie:
-%   Zmienne - slownik zmiennych programu 
-%   Tablice - slownik tablic (jako listy prologowe) programu 
-%   Liczniki - tablica licznikow (wskazuja aktualny numer instrukcji) procesow
 
 %Tworzy n-elementowa liste o wartosciach E
 createArray(0, _, []).
@@ -36,14 +67,8 @@ initArrays(N, [NazwaTablicy|Pozostale], Arrays) :-
     initArrays(N, Pozostale, Arrs),
     Arrays = Arrs.put(NazwaTablicy, NowaTablica).
 
-%initState(+Program, +N, -StanPoczątkowy)
-initState(Zmienne, Tablice, N, StanPoczatkowy) :- 
-    createArray(N, 1, Liczniki), % tworzymy liczniki
-    initVariables(Zmienne, Variables), %tworzymy slownik zmiennych
-    initArrays(N, Tablice, Arrays), % tworzymy slownik tablic
-    StanPoczatkowy = [Variables, Arrays, Liczniki].
 
-%run(Instrukcja, Stan, Pid, NowyStan)
+
 run(assign(Zmienna, Wyrazenie), Stan, Pid, NowyStan) :-
     Stan = [Zmienne, Tablice, Liczniki],
     evalWyrArytm(Stan, Wyrazenie, Pid, Wynik),    
@@ -134,35 +159,11 @@ evalWyrProste(Zmienne, Tablice, Wyrazenie, Pid, Wynik) :-
      arg(2, Wyrazenie, WyrArytm), %indeks tablicy, ktory moze byc wyrazeniem
      evalWyrArytm([Zmienne, Tablice, _], WyrArytm, Pid, Indeks),
      Tablica = Tablice.get(Ident), %wyciagamy odpowiednia tablice ze slownika
-     nth0(Indeks, Tablica, Wynik) %sprawdzamy co siedzi pod wyewaluowanym indeksem
+     nth0(Indeks, Tablica, Wynik) %zwracamy co jest pod danym indeksem
     ).
 
-%nextInstruction(+StanWe, PrId, -StanWy)
-nextInstruction(program(Instrukcje), StanWe, PrId, StanWy) :-
-    nth0(PrId, Instrukcje, Instrukcja),
-    functor(Instrukcja, Nazwa, _),
-    run(Nazwa, Instrukcja, StanWe, StanWy).
-
-%step(+Program, +StanWe, ?PrId, -StanWy)
-% Program to lista instrukcji
-step(Program, StanWe, PrId, StanWy) :- 
-    StanWe = [Zmienne, Tablice, Liczniki],
-    PrId >= 0,
-    nth0(PrId, Liczniki, NumerAktualnejInstrukcji),
-    nth1(NumerAktualnejInstrukcji, Program, Instrukcja),
-    run(Instrukcja, StanWe, PrId, StanWy).
-
-%WERYFIKACJA
-
-verify(N, Program) :- 
-    analyze(Program, Analyzed),
-    Analyzed = [Zmienne, Tablice, Instrukcje],
-    initState(Zmienne, Tablice, 2, StanPoczatkowy),
-    \+ walk(N, Instrukcje, StanPoczatkowy, [StanPoczatkowy]),
-    write("Program jest poprawny").
-
-range(Low, Low, High).
-range(Out,Low,High) :- NewLow is Low+1, NewLow =< High, range(Out, NewLow, High).
+range(Low, Low, _).
+range(Out,Low,High) :- NewLow is Low+1, NewLow < High, range(Out, NewLow, High).
 
 czyByl(Stan, PoprzednieStany) :- member(Stan, PoprzednieStany).
 
@@ -170,15 +171,20 @@ czyByl(Stan, PoprzednieStany) :- member(Stan, PoprzednieStany).
 walk(N, Instrukcje, StanWe, OdwiedzoneStany) :-
     range(Pid, 0, N),
     step(Instrukcje, StanWe, Pid, StanWy),
-    (\+ czyByl(StanWy, OdwiedzoneStany)),
-    NoweOdwiedzoneStany = [StanWy|OdwiedzoneStany],
+    StanWy = [_, _, Liczniki],
+    % Jesli procesy byly juz w danej konfiguracji, to nie trzeba juz tego sprawdzac
+    (\+ czyByl(Liczniki, OdwiedzoneStany)),
+    NoweOdwiedzoneStany = [Liczniki|OdwiedzoneStany],
     ( czyNiebezpieczny(Instrukcje, StanWy),!
     ;
       walk(N, Instrukcje, StanWy, NoweOdwiedzoneStany)).
 
+% Program jest niebezpieczny, jesli istnieja przynajmniej 2 stany,
+% ktorych licznik wskazuje na instrukcje 'sekcja'
+% zakladam tutaj, ze sekcja moze sie pojawic wielokrotnie
 czyNiebezpieczny(Instrukcje, Stan) :-
     indeksySekcji(1, Instrukcje, Indeksy),
-    Stan = [Zmienne, Tablice, Liczniki],
+    Stan = [_, _, Liczniki],
     ileWSekcji(Indeksy, Liczniki, N),
     N > 1,
     write("Program jest niepoprawny").
@@ -192,7 +198,6 @@ ileWSekcji(IndeksySekcji, Liczniki, N) :-
     ;
         ileWSekcji(IndeksySekcji, Pozostale, N)
     ).
-
 
 indeksySekcji(_, [], []).
 indeksySekcji(N, Instrukcje, Indeksy) :-
